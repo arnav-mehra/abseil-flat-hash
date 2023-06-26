@@ -17,7 +17,7 @@ fn criterion_benchmark(c: &mut Criterion) {
         group.bench_with_input(
             BenchmarkId::from_parameter(size),
             size,
-            |b, &size| {
+            |b: &mut criterion::Bencher<'_>, &size: &usize| {
                 let s: Vec<u8> = vec![1; size];
                 b.iter(|| {
                     hasher.write(&s);

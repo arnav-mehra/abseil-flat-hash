@@ -7,7 +7,12 @@ edition = "2021"
 
 [dev-dependencies]
 criterion = { version = "0.4", features = ["html_reports"] }
+rand = "0.8.5"
 
 [[bench]]
-name = "speed"
+name = "hash_speed"
+harness = false
+
+[[bench]]
+name = "hash_quality"
 harness = false
