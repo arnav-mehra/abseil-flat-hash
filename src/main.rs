@@ -1,24 +1,18 @@
-// #![feature(test)]
+#![feature(const_trait_impl)]
 
 mod abseil;
 use abseil::flat_hash_map::AFHM;
+use abseil::flat_hash_set::AFHS;
+use abseil::interpretable::*;
+use abseil::printable::*;
 
 fn main() {
-    println!("Hello, world!");
-
-    // let mut ind = 10;
-    // for i in 0..10 {
-    //     ind += i * 2 + 1;
-    //     ind &= 15;
-    //     println!("{}", ind);
-    // }
-
-    let mut amap: AFHM<i32, i32> = AFHM::new();
-    for c in 1..5 {
-        amap.insert(c, c);
-    }
-    for i in 0..amap.capacity() {
-        if !amap.is_full(i) { continue; }
-        print!("({}: <{}, {}>), ", i, amap.arr[i].0, amap.arr[i].1);
-    } println!();
+    let instructions = [
+        Instr::new(Op::ADD, 0..20),
+        Instr::new(Op::REMOVE, 4..14),
+    ];
+    
+    let mut amap: AFHS<i32> = AFHS::new();
+    amap.print(true);
+    amap.interpret(&instructions, true);
 }
