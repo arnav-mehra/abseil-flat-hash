@@ -31,7 +31,7 @@ use itertools::Itertools;
 
 use criterion::*;
 
-const N : usize = 500_000;
+const N : usize = 1_000_000;
 const BIT_DISTS : [[f64; 64]; 7] = [
     [0.1; 64],
     [0.3; 64],
@@ -84,7 +84,7 @@ fn get_collision_avg_sq_sum(hist: &HashHistogram<u64>, m: usize) -> f32 {
     (coll_sq_sum as f32) / (m as f32)
 }
 
-fn get_bit_rate_sq_sum(hist: &HashHistogram<u64>, m: usize) -> f32 {
+fn get_bit_dist_sq_sum(hist: &HashHistogram<u64>, m: usize) -> f32 {
     // build bit histogram.
     let mut bit_hist : [u64; 64] = [0; 64];
     for (&hash, _) in hist.iter() {
@@ -104,6 +104,7 @@ fn get_bit_rate_sq_sum(hist: &HashHistogram<u64>, m: usize) -> f32 {
 fn criterion_benchmark(_ : &mut Criterion) {
     for (hash_name, hash_fn) in HASHES {
         println!("\nHash: {}", hash_name);
+        print!("\t[collision penalty]\t[bit dist penalty]\n");
 
         for bit_dist in BIT_DISTS {
             let rands : Vec<u64> = get_rands(&bit_dist);
@@ -116,11 +117,10 @@ fn criterion_benchmark(_ : &mut Criterion) {
                 .collect();
 
             let collision_avg_sq_sum = get_collision_avg_sq_sum(&hist, m);
-            let bit_rate_sq_sum = get_bit_rate_sq_sum(&hist, m);
+            let bit_dist_sq_sum = get_bit_dist_sq_sum(&hist, m);
 
             // println!("samples generated: {}", m);
-            println!("collision penalty: {}", collision_avg_sq_sum);
-            println!(" bit rate penalty: {}", bit_rate_sq_sum);
+            print!("\t {:-18}\t{:-18}\n", collision_avg_sq_sum, bit_dist_sq_sum);
         }
     }
 }

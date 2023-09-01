@@ -8,7 +8,21 @@ use std::collections::hash_map::DefaultHasher;
 use std::hash::Hasher;
 use criterion::{criterion_group, criterion_main, Criterion, BenchmarkId, Throughput};
 
+const N : usize = 1_000_000;
+
+const HASHES : [(&str, fn(u64) -> u64); 3] = [
+    ("StdHash", std_hash),
+    ("FxHash", fx_hash),
+    ("CtrlHash", |x : u64| x >> 32)
+];
+
 fn criterion_benchmark(c: &mut Criterion) {
+    for (hash_name, hash_fn) in HASHES {
+        
+
+        println!("\nHash: {}", hash_name);
+    }
+
     let mut group = c.benchmark_group("gotta-go-fast");
     let mut hasher: DefaultHasher = DefaultHasher::new();
 
