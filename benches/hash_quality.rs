@@ -1,5 +1,10 @@
 /*
-REAL COOL TEST BENCH.
+REAL COOL TEST BENCH FOR HASH QUALITY.
+
+IDEA:
+    For a quality hash function,
+    unique-valued keys, even when sampled from biased bit distributions,
+    should be hashed to something non-biased.
 
 INPUTS:
     1. BIT_DISTS:   Individually adjustable bit probabilities. index -> 2^index bit.

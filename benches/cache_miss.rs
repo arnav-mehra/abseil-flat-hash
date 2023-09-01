@@ -1,1 +1,1 @@
-// target continual cache miss
+// target continual cache miss -> randomly access by key
