@@ -1,1 +1,1 @@
-// target repeated cache hits
+// target cache hits -> target small fixed set of entries 
