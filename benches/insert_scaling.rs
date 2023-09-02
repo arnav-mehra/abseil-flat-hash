@@ -1,4 +1,4 @@
-// mass insert times vs. other hashmaps
+#![feature(portable_simd)]
 
 #[path="../src/abseil/mod.rs"] mod abseil;
 use abseil::flat_hash_map::AFHM;

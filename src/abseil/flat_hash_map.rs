@@ -1,5 +1,5 @@
 use super::hashable::Hashable;
-use std::simd::{u8x64, SimdPartialEq};
+use std::{simd::{u8x64, SimdPartialEq, u8x16}};
 
 // https://abseil.io/about/design/swisstables
 
@@ -9,8 +9,10 @@ pub struct AFHM<K, V> {
     pub size: usize
 }
 
-const SIMD_SIZE : usize = 64;
-const INITIAL_SIZE : usize = 16;
+type SimdChunk = u8x64;
+const SIMD_CHUNK_SIZE : usize = 64;
+
+const INITIAL_SIZE : usize = SIMD_CHUNK_SIZE;
 const EMPTY_ENTRY : u8 = 0b1000_0000;
 const TOMBSTONE_ENTRY : u8 = 0b1111_1110;
 const BOTTOM_SEVEN : u64 = 0b0111_1111;
@@ -109,25 +111,27 @@ impl<
         // hashing
         let (bot_7, mut ind) = self.get_hash(&k);
 
-        let simd_ptr = self.meta.as_ptr() as *const u8x64;
-        let target = u8x64::splat(bot_7);
+        let simd_ptr = self.meta.as_ptr() as *const SimdChunk;
+        let target = SimdChunk::splat(bot_7);
+        // let weights = SimdChunk::from(0..SIMD_CHUNK_SIZE);
 
-        let mut first_chunk : usize = ind >> 3; // gets first 8-byte aligned chunk to search
-        let mut ind_align_offset : usize = ind & 0b111; // number of entries to ignore
-        
+        let mut first_chunk : usize = ind / self.num_chunks(); // gets first 64-byte chunk to search
+        let mut ind_align_offset : usize = ind & (self.num_chunks() - 1); // number of entries to ignore
+
         // probing
         let mut chunk : usize = first_chunk;
         loop {
             // SIMD search
             unsafe {
-                let chunk_ptr : *const u8x64 = simd_ptr.offset(chunk as isize) as *const u8x64;
+                let chunk_ptr : *const SimdChunk = simd_ptr.offset(chunk as isize) as *const SimdChunk;
                 let simd_res = (*chunk_ptr).simd_eq(target);
                 let match_found : bool = simd_res.any();
+                let first_match = simd_res. 
 
                 // do linear search
                 if match_found {
-                    let start : usize = chunk * SIMD_SIZE + ind_align_offset;
-                    let end : usize = start + SIMD_SIZE;
+                    let start : usize = chunk * SIMD_CHUNK_SIZE + ind_align_offset;
+                    let end : usize = (chunk + 1) * SIMD_CHUNK_SIZE;
                     for i in start..end {
                         if self.is_empty(i) {
                             return usize::MAX;
@@ -182,7 +186,7 @@ impl<
     }
 
     pub fn num_chunks(&self) -> usize {
-        self.capacity() / SIMD_SIZE    
+        self.capacity() / SIMD_CHUNK_SIZE    
     }
 
     pub fn load(&self) -> f32 {

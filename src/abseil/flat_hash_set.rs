@@ -9,8 +9,8 @@ pub struct AFHS<K> {
     pub size: usize
 }
 
-const SIMD_SIZE : usize = 64;
-const INITIAL_SIZE : usize = 16;
+const SIMD_CHUNK_SIZE : usize = 64;
+const INITIAL_SIZE : usize = SIMD_CHUNK_SIZE;
 const EMPTY_ENTRY : u8 = 0b1000_0000;
 const TOMBSTONE_ENTRY : u8 = 0b1111_1110;
 const BOTTOM_SEVEN : u64 = 0b0111_1111;
@@ -110,8 +110,8 @@ impl<
                 
                 // do linear search
                 if match_found {
-                    let start : usize = chunk * SIMD_SIZE + ind_align_offset;
-                    let end : usize = start + SIMD_SIZE;
+                    let start : usize = chunk * SIMD_CHUNK_SIZE + ind_align_offset;
+                    let end : usize = (chunk + 1) * SIMD_CHUNK_SIZE;
                     for i in start..end {
                         if self.is_empty(i) {
                             return usize::MAX;
@@ -166,7 +166,7 @@ impl<
     }
 
     pub fn num_chunks(&self) -> usize {
-        self.capacity() / SIMD_SIZE    
+        self.capacity() / SIMD_CHUNK_SIZE    
     }
 
     pub fn load(&self) -> f32 {
