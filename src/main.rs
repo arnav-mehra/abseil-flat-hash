@@ -3,8 +3,6 @@
 mod abseil;
 use abseil::flat_hash_map::AFHM;
 use abseil::flat_hash_set::AFHS;
-use abseil::flat_hash_map_simd::AFHM_SIMD;
-use abseil::flat_hash_set_simd::AFHS_SIMD;
 use abseil::interpretable::*;
 use abseil::printable::*;
 

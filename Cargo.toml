@@ -11,7 +11,7 @@ rand = "0.8.5"
 fxhash = "0.2.1"
 
 [[bench]]
-name = "hash_benches"
+name = "probe_benches"
 harness = false
 
 [dependencies]
