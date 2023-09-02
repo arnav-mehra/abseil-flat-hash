@@ -25,9 +25,8 @@ OUTPUTS:
     3. bit rate penalty:    Sum of (bit occurrance rate - 0.5, ideal rate) squares.
 */
 
-use std::hash::Hasher;
-use std::collections::hash_map::*;
-use fxhash::FxHasher64;
+#[path="./hash_functions.rs"] mod functions;
+use functions::HASHES;
 
 use rand::prelude::Distribution;
 use rand::distributions::Bernoulli;
@@ -46,23 +45,6 @@ const BIT_DISTS : [[f64; 64]; 7] = [
     [0.7; 64],
     [0.9; 64],
 ];
-const HASHES : [(&str, fn(u64) -> u64); 3] = [
-    ("StdHash", std_hash),
-    ("FxHash", fx_hash),
-    ("CtrlHash", |x : u64| x >> 32)
-];
-
-fn fx_hash(x : u64) -> u64 {
-    let mut hasher: FxHasher64 = FxHasher64::default();
-    hasher.write_u64(x);
-    hasher.finish()
-}
-
-fn std_hash(x : u64) -> u64 {
-    let mut hasher: DefaultHasher = DefaultHasher::new();
-    hasher.write_u64(x);
-    hasher.finish()
-}
 
 // generate samples based on individual bit probabilities.
 fn get_rands(bit_dist: &[f64; 64]) -> Vec<u64> {
@@ -106,7 +88,7 @@ fn get_bit_dist_sq_sum(hist: &HashHistogram<u64>, m: usize) -> f32 {
     bit_rate_sq_sum
 }
 
-fn criterion_benchmark(_ : &mut Criterion) {
+pub fn criterion_benchmark(_ : &mut Criterion) {
     for (hash_name, hash_fn) in HASHES {
         println!("\nHash: {}", hash_name);
         print!("\t[collision penalty]\t[bit dist penalty]\n");
@@ -129,6 +111,3 @@ fn criterion_benchmark(_ : &mut Criterion) {
         }
     }
 }
-
-criterion_group!(benches, criterion_benchmark);
-criterion_main!(benches);

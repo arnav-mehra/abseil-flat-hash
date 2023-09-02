@@ -1,4 +1,4 @@
-use super::printable::{*, self};
+use super::printable::{*};
 use super::flat_hash_map::AFHM;
 use super::flat_hash_set::AFHS;
 
