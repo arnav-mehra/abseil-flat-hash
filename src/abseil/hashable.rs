@@ -13,10 +13,9 @@ impl Hashable for u32 {
 
 impl Hashable for i32 {
     fn hash(&self) -> u64 {
-        // let mut hasher: DefaultHasher = DefaultHasher::new();
-        // hasher.write_i32(*self);
-        // hasher.finish()
-        (*self as u64) << 7
+        let mut hasher: DefaultHasher = DefaultHasher::new();
+        hasher.write_i32(*self);
+        hasher.finish()
     }
 }
 

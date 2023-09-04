@@ -1,4 +1,7 @@
 #![feature(portable_simd)]
+#![feature(pointer_is_aligned)]
+#![feature(stdsimd)]
+#![feature(unchecked_math)]
 
 #[path="../src/abseil/mod.rs"] mod abseil;
 use abseil::flat_hash_map::AFHM;

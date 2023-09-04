@@ -1,18 +1,19 @@
 use super::hashable::Hashable;
-use std::{simd::{u8x64, SimdPartialEq, u8x16}};
-
+use std::{simd::{u8x32, SimdPartialEq, u8x16, Simd, ToBitMask}};
+use std::{arch::x86_64};
+// SIMD: AVX2. Supports 256-bit instructions. Works since Intel Haswell processors.
 // https://abseil.io/about/design/swisstables
 
 pub struct AFHM<K, V> {
-    pub meta: Vec<u8>, 
+    pub meta: Vec<u8>,
     pub arr: Vec<(K, V)>,
     pub size: usize
 }
 
-type SimdChunk = u8x64;
-const SIMD_CHUNK_SIZE : usize = 64;
+type SimdChunk = u8x32;
+const SIMD_CHUNK_SIZE : usize = 32;
+const INITIAL_SIZE : usize = 32;
 
-const INITIAL_SIZE : usize = SIMD_CHUNK_SIZE;
 const EMPTY_ENTRY : u8 = 0b1000_0000;
 const TOMBSTONE_ENTRY : u8 = 0b1111_1110;
 const BOTTOM_SEVEN : u64 = 0b0111_1111;
@@ -32,11 +33,15 @@ impl<
     }
 
     pub fn with_capacity(size : usize) -> AFHM<K, V> {
-        AFHM {
-            meta: vec![EMPTY_ENTRY; size],
+        let mut new_map = AFHM {
+            meta: vec![EMPTY_ENTRY; size + SIMD_CHUNK_SIZE],
             arr: vec![(K::default(), V::default()); size],
             size: 0
+        };
+        for i in size..(size + SIMD_CHUNK_SIZE) {
+            new_map.meta[i] = EMPTY_ENTRY;
         }
+        new_map
     }
 
     // CRUD
@@ -77,6 +82,10 @@ impl<
         // updates
         self.size += 1;
         self.meta[ind] = bot_7;
+        if ind < SIMD_CHUNK_SIZE {
+            let ind_cpy : usize = ind + self.capacity();
+            self.meta[ind_cpy] = bot_7;
+        }
         self.arr[ind] = (k, v);
     }
 
@@ -85,6 +94,10 @@ impl<
             usize::MAX => {}
             loc => {
                 self.meta[loc] = TOMBSTONE_ENTRY;
+                if loc < SIMD_CHUNK_SIZE {
+                    let ind_cpy : usize = loc + self.capacity();
+                    self.meta[ind_cpy] = TOMBSTONE_ENTRY;
+                }
                 self.size -= 1;
                 self.shrink_if_necessary();
             }
@@ -107,49 +120,48 @@ impl<
         usize::MAX
     }
 
-    pub fn get_loc_simd(&self, k : K) -> usize {
+    pub fn get_loc_simd(&self, k : K) -> usize { unsafe {
         // hashing
         let (bot_7, mut ind) = self.get_hash(&k);
 
-        let simd_ptr = self.meta.as_ptr() as *const SimdChunk;
-        let target = SimdChunk::splat(bot_7);
-        // let weights = SimdChunk::from(0..SIMD_CHUNK_SIZE);
-
-        let mut first_chunk : usize = ind / self.num_chunks(); // gets first 64-byte chunk to search
-        let mut ind_align_offset : usize = ind & (self.num_chunks() - 1); // number of entries to ignore
+        let target_match: x86_64::__m256i = x86_64::_mm256_set1_epi8(bot_7 as i8);
+        let target_empty: x86_64::__m256i = x86_64::_mm256_set1_epi8(1i8 << 7);
 
         // probing
-        let mut chunk : usize = first_chunk;
         loop {
-            // SIMD search
-            unsafe {
-                let chunk_ptr : *const SimdChunk = simd_ptr.offset(chunk as isize) as *const SimdChunk;
-                let simd_res = (*chunk_ptr).simd_eq(target);
-                let match_found : bool = simd_res.any();
-                let first_match = simd_res. 
+            let chunk_ptr : *const i8 = self.meta.as_ptr().offset(ind as isize) as *const i8;
+            let chunk: x86_64::__m256i = x86_64::_mm256_loadu_epi8(chunk_ptr);
 
-                // do linear search
-                if match_found {
-                    let start : usize = chunk * SIMD_CHUNK_SIZE + ind_align_offset;
-                    let end : usize = (chunk + 1) * SIMD_CHUNK_SIZE;
-                    for i in start..end {
-                        if self.is_empty(i) {
-                            return usize::MAX;
-                        }
-                        if self.check_key(k, bot_7, i) {
-                            return i;
-                        }
-                    }
+            // SIMD equality search -> bit mask search
+            let mut simd_matches : u32 = x86_64::_mm256_cmpeq_epu8_mask(chunk, target_match).reverse_bits();
+            let mut simd_empties : u32 = x86_64::_mm256_cmpeq_epu8_mask(chunk, target_empty).reverse_bits();
+
+            loop {
+                // empty cell before matching cell, no match.
+                if simd_empties > simd_matches {
+                    return usize::MAX; 
                 }
-            }
-            ind_align_offset = 0;
-            chunk = (chunk + 1) & (self.num_chunks() - 1);
-            if chunk == first_chunk { break; }
-        }
 
-        // return no match found
-        usize::MAX
-    }
+                // no empty or matching cells remaining, search next chunk.
+                if simd_matches == 0u32 {
+                    break; 
+                }
+
+                // check for match.
+                let lzs : usize = simd_matches.leading_zeros() as usize;
+                let i : usize = (lzs + ind) & (self.capacity() - 1);
+                let key_matches : bool = self.arr[i].0 == k;
+                if key_matches {
+                    return i;
+                }
+
+                // remove leading 1 (leading hit was false positive).
+                simd_matches &= simd_matches - 1; 
+            }
+
+            ind = (ind + SIMD_CHUNK_SIZE) & (self.capacity() - 1);
+        }
+    }}
 
     // HASHING
 
@@ -170,7 +182,7 @@ impl<
 
     fn get_hash(&self, k : &K) -> (u8, usize) {
         let hash_val : u64 = Hashable::hash(k);
-        let bitmask : usize = self.arr.capacity() - 1;
+        let bitmask : usize = self.capacity() - 1;
         let ind : usize = (self.top_57(hash_val) as usize) & bitmask;
         (self.bot_7(hash_val), ind)
     }
@@ -185,23 +197,19 @@ impl<
         self.arr.capacity()
     }
 
-    pub fn num_chunks(&self) -> usize {
-        self.capacity() / SIMD_CHUNK_SIZE    
-    }
-
     pub fn load(&self) -> f32 {
         (self.size() as f32) / (self.capacity() as f32)
     }
 
     fn expand_if_necessary(&mut self) {
         if self.load() > MAX_LOAD_FACTOR {
-            self.replace_self(self.arr.capacity() << 1);  
+            self.replace_self(self.capacity() << 1);  
         }
     }
 
     fn shrink_if_necessary(&mut self) {
-        if self.load() < MIN_LOAD_FACTOR && self.capacity() != 16 {
-            self.replace_self(self.arr.capacity() >> 1);  
+        if self.load() < MIN_LOAD_FACTOR && self.capacity() != INITIAL_SIZE {
+            self.replace_self(self.capacity() >> 1);  
         }
     }
     

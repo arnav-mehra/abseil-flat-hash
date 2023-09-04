@@ -1,4 +1,7 @@
 #![feature(portable_simd)]
+#![feature(pointer_is_aligned)]
+#![feature(stdsimd)]
+#![feature(unchecked_math)]
 
 use criterion::{criterion_group, criterion_main};
 
